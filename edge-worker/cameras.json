@@ -1,0 +1,55 @@
+{
+  "_comment": "Daftar kamera CCTV. Tambah/hapus sesuai kebutuhan.",
+  "cameras": [
+    {
+      "cam_id": "lantai1_cam01",
+      "name": "Lantai 1 - Pintu Utama",
+      "cam_url": "rtsp://admin:password@192.168.1.101:554/stream1"
+    },
+    {
+      "cam_id": "lantai1_cam02",
+      "name": "Lantai 1 - Lorong Timur",
+      "cam_url": "rtsp://admin:password@192.168.1.102:554/stream1"
+    },
+    {
+      "cam_id": "lantai1_cam03",
+      "name": "Lantai 1 - Pintu Belakang",
+      "cam_url": "rtsp://admin:password@192.168.1.103:554/stream1"
+    },
+    {
+      "cam_id": "lantai2_cam01",
+      "name": "Lantai 2 - Pintu Utama",
+      "cam_url": "rtsp://admin:password@192.168.1.104:554/stream1"
+    },
+    {
+      "cam_id": "lantai2_cam02",
+      "name": "Lantai 2 - Ruang Meeting",
+      "cam_url": "rtsp://admin:password@192.168.1.105:554/stream1"
+    },
+    {
+      "cam_id": "lantai3_cam01",
+      "name": "Lantai 3 - Lift",
+      "cam_url": "rtsp://admin:password@192.168.1.106:554/stream1"
+    },
+    {
+      "cam_id": "lantai3_cam02",
+      "name": "Lantai 3 - Koridor",
+      "cam_url": "rtsp://admin:password@192.168.1.107:554/stream1"
+    },
+    {
+      "cam_id": "parkir_cam01",
+      "name": "Parkir - Gerbang Masuk",
+      "cam_url": "rtsp://admin:password@192.168.1.108:554/stream1"
+    },
+    {
+      "cam_id": "parkir_cam02",
+      "name": "Parkir - Gerbang Keluar",
+      "cam_url": "rtsp://admin:password@192.168.1.109:554/stream1"
+    },
+    {
+      "cam_id": "gudang_cam01",
+      "name": "Gudang - Area Produk",
+      "cam_url": "rtsp://admin:password@192.168.1.110:554/stream1"
+    }
+  ]
+}
