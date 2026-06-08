@@ -1,38 +1,23 @@
 {
-  "_comment": "Daftar kamera CCTV dengan ROI Polygon",
   "cameras": [
     {
-      "cam_id": "lantai1_pintu",
-      "name": "Lantai 1 - Pintu Utama",
+      "cam_id": "pintu_utama",
+      "name": "Pintu Utama",
       "cam_url": "rtsp://admin:pass@192.168.1.101:554/stream1",
-      "roi": [
-        [150, 100],
-        [500, 100],
-        [450, 400],
-        [200, 400]
-      ]
+      "feature": "counting",
+      "roi": [[100, 100], [500, 100], [400, 400], [200, 400]]
     },
     {
-      "cam_id": "lantai1_lift",
-      "name": "Lantai 1 - Area Lift",
+      "cam_id": "lobi_utama",
+      "name": "Lobi Utama",
       "cam_url": "rtsp://admin:pass@192.168.1.102:554/stream1",
-      "roi": [
-        [200, 50],
-        [400, 50],
-        [450, 350],
-        [150, 350]
-      ]
+      "feature": "face_rec"
     },
     {
-      "cam_id": "parkir_masuk",
-      "name": "Parkir - Gerbang Masuk",
-      "cam_url": "rtsp://admin:pass@192.168.1.110:554/stream1",
-      "roi": [
-        [0, 200],
-        [640, 200],
-        [640, 480],
-        [0, 480]
-      ]
+      "cam_id": "lorong_belakang",
+      "name": "Lorong Belakang",
+      "cam_url": "rtsp://admin:pass@192.168.1.103:554/stream1",
+      "feature": "heatmap"
     }
   ]
 }
