@@ -162,107 +162,101 @@ async def dashboard():
 DASHBOARD_HTML = r"""<!DOCTYPE html>
 <html>
 <head>
-    <title>CCTV Central Control</title>
+    <title>CCTOps</title>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
-        h1 { margin-bottom: 4px; }
-        .sub { color: #64748b; margin-bottom: 24px; }
-        .grid { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
-        .card { background: #1e293b; border-radius: 12px; padding: 16px; min-width: 140px; text-align: center; border-left: 4px solid #3b82f6; }
-        .card .v { font-size: 28px; font-weight: 700; }
-        .card .l { font-size: 13px; color: #94a3b8; }
-        .feature-tag { display: inline-block; background: #334155; padding: 2px 10px; border-radius: 8px; font-size: 11px; margin-top: 4px; }
-        .cameras { display: flex; flex-direction: column; gap: 10px; }
-        .cam-row { background: #1e293b; border-radius: 10px; padding: 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; }
-        .cam-row.online { border-left: 4px solid #22c55e; }
-        .cam-row.offline { border-left: 4px solid #ef4444; opacity: 0.6; }
-        .cam-name { font-weight: 600; }
-        .badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-        .badge.on { background: #22c55e; }
-        .badge.off { background: #ef4444; }
-        table.od { font-size: 13px; border-collapse: collapse; margin-top: 6px; }
-        table.od th, table.od td { border: 1px solid #334155; padding: 4px 10px; text-align: center; }
-        table.od th { background: #1e293b; color: #94a3b8; }
-        .flex-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',system-ui,sans-serif;background:#0b1120;color:#e2e8f0;padding:20px;min-height:100vh}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:8px}
+        .header h1{font-size:22px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+        .header h1 span{background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        #status{border:1px solid #1e293b;border-radius:8px;padding:6px 14px;font-size:13px;color:#94a3b8}
+        .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}
+        .stat-card{background:#131c31;border-radius:10px;padding:14px;text-align:center;border-top:3px solid #3b82f6}
+        .stat-card .v{font-size:26px;font-weight:700}
+        .stat-card .l{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+        .cam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+        .cam-card{background:#131c31;border-radius:12px;padding:14px;cursor:pointer;transition:all .15s;border:1px solid transparent}
+        .cam-card:hover{border-color:#334155;transform:translateY(-1px)}
+        .cam-card .top{display:flex;justify-content:space-between;align-items:start;margin-bottom:8px}
+        .cam-card .name{font-weight:600;font-size:14px}
+        .cam-card .feature-tag{background:#1e293b;padding:2px 8px;border-radius:6px;font-size:10px;color:#94a3b8}
+        .cam-card .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+        .cam-card .status-dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e66}
+        .cam-card .status-dot.off{background:#ef4444}
+        .cam-card .extra{font-size:12px;color:#94a3b8;margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+        .cam-card .extra .tag{background:#1e293b;padding:2px 8px;border-radius:5px;font-size:11px}
+        .cam-card canvas{width:100%;height:64px;border-radius:6px;margin-top:8px;background:#0b1120;image-rendering:pixelated}
+        .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center;padding:20px}
+        .overlay.open{display:flex}
+        .modal{background:#131c31;border-radius:16px;padding:24px;width:100%;max-width:650px;max-height:80vh;overflow-y:auto;border:1px solid #1e293b;position:relative}
+        .modal .close{position:absolute;top:12px;right:16px;background:none;border:none;color:#64748b;font-size:22px;cursor:pointer}
+        .modal .close:hover{color:#e2e8f0}
+        .modal h2{font-size:18px;margin-bottom:4px}
+        .modal .sub{color:#64748b;font-size:13px;margin-bottom:14px}
+        .modal table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+        .modal td,.modal th{border:1px solid #1e293b;padding:6px 10px;text-align:center}
+        .modal th{background:#0b1120;color:#94a3b8;font-weight:600}
+        .modal .fl{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+        .modal .fl .fi{background:#1e293b;padding:4px 12px;border-radius:8px;font-size:13px}
+        .modal canvas.hm{width:100%;height:120px;border-radius:8px;background:#0b1120;margin-top:8px;image-rendering:pixelated}
     </style>
 </head>
 <body>
-    <h1>📹 CCTV Central Control</h1>
-    <div class="sub" id="status">Connecting...</div>
-    <div class="grid" id="stats"></div>
-    <div class="cameras" id="cameras-list">
-        <div style="color:#64748b;text-align:center;padding:40px;">Waiting for Edge Workers...</div>
+    <div class="header">
+        <h1><span>⦿</span> CCTOps</h1>
+        <div id="status">Connecting...</div>
     </div>
+    <div class="stats" id="stats"></div>
+    <div class="cam-grid" id="camGrid"><div style="color:#64748b;text-align:center;padding:40px;grid-column:1/-1">Waiting...</div></div>
+    <div class="overlay" id="overlay"><div class="modal" id="modal"><button class="close" onclick="closeModal()">&times;</button><h2 id="modalTitle">Camera</h2><div class="sub" id="modalFeature">feature</div><div id="modalBody"></div></div></div>
     <script>
-        const ws = new WebSocket((location.protocol=='https:'?'wss:':'ws:')+'//'+location.host+'/ws');
-        const cameras = {};
+        const ws=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws');
+        const cameras={};
 
-        function render() {
-            const entries = Object.values(cameras);
-            const now = Date.now()/1000;
-            document.getElementById('stats').innerHTML = [
-                ['Total Camera', entries.length, '#3b82f6'],
-                ['Online', entries.filter(e=>(now-(e.timestamp||0))<30).length, '#22c55e'],
-                ['Inside ROI', entries.reduce((s,e)=>s+(e.people_inside||0),0), '#f59e0b'],
-            ].map(c=>`<div class="card" style="border-color:${c[2]}"><div class="l">${c[0]}</div><div class="v" style="color:${c[2]}">${c[1]}</div></div>`).join('');
+        function hc(v){v=Math.max(0,Math.min(1,v));if(v<.25)return 'hsl(220,80%,'+(30+v*60)+'%)';if(v<.5)return 'hsl('+(220-(v-.25)*300)+',80%,50%)';if(v<.75)return 'hsl('+(145-(v-.5)*300)+',80%,50%)';return 'hsl('+(45-(v-.75)*30)+',90%,50%)'}
 
-            document.getElementById('cameras-list').innerHTML = entries.length===0
-                ? '<div style="color:#64748b;text-align:center;padding:40px;">Waiting...</div>'
-                : entries.sort((a,b)=>a.cam_id>b.cam_id?1:-1).map(c=>{
-                    const isOn = (now-(c.timestamp||0))<30;
-                    const feat = c.feature||'counting';
-                    let extra = '';
+        function dhm(can,grid,w,h){if(!can||!grid||!grid.length)return;const ctx=can.getContext('2d');can.width=w;can.height=h;const bw=Math.ceil(w/grid[0].length),bh=Math.ceil(h/grid.length);for(let y=0;y<grid.length;y++){for(let x=0;x<grid[y].length;x++){ctx.fillStyle=hc(grid[y][x]);ctx.fillRect(x*bw,y*bh,bw,bh)}}}
 
-                    if (feat==='trajectory') {
-                        const od = c.od_matrix || {};
-                        const labels = c.trajectory_labels || Object.keys(od);
-                        if (labels.length) {
-                            let rows = '';
-                            labels.forEach(o=>{
-                                let cells = `<td><b>${o}</b></td>`;
-                                labels.forEach(d=>{
-                                    cells += `<td>${(od[o]||{})[d]||0}</td>`;
-                                });
-                                rows += `<tr>${cells}</tr>`;
-                            });
-                            let header = '<th></th>'+labels.map(l=>`<th>${l}</th>`).join('');
-                            extra = `<table class="od"><tr>${header}</tr>${rows}</table>`;
-                        }
-                    } else if (feat==='face_rec') {
-                        const rec = c.recognized||{};
-                        const names = Object.keys(rec);
-                        extra = names.length
-                            ? names.map(n=>`<span class="feature-tag">${n} ${rec[n]}x</span>`).join('')
-                            : '<span class="feature-tag">No face</span>';
-                    } else if (feat==='heatmap') {
-                        extra = '<span class="feature-tag">🔥 Heatmap active</span>';
-                    } else {
-                        extra = `<span class="feature-tag">👥 Inside: ${c.people_inside||0}</span>`;
-                    }
-
-                    return `<div class="cam-row ${isOn?'online':'offline'}">
-                        <div>
-                            <div class="cam-name">${c.cam_name||c.cam_id}</div>
-                            <div class="flex-row">
-                                <span class="feature-tag">${feat}</span>
-                                ${extra}
-                            </div>
-                        </div>
-                        <div><span class="badge ${isOn?'on':'off'}">${isOn?'● ONLINE':'○ OFFLINE'}</span></div>
-                    </div>`;
-                }).join('');
+        function render(){
+            const e=Object.values(cameras);const now=Date.now()/1000;const on=e.filter(c=>(now-(c.timestamp||0))<30);const inside=on.reduce((s,c)=>s+(c.people_inside||0),0);
+            document.getElementById('stats').innerHTML=[['Camera',e.length,'#3b82f6'],[(e.length?'Online of':'Wait')+(e.length?'/'+e.length:''),e.length?on.length:0,'#22c55e'],['Inside',inside,'#f59e0b']].map(c=>`<div class="stat-card" style="border-color:${c[2]}"><div class="v" style="color:${c[2]}">${c[1]}</div><div class="l">${c[0]}</div></div>`).join('');
+            const gr=document.getElementById('camGrid');
+            if(!e.length){gr.innerHTML='<div style="color:#64748b;text-align:center;padding:40px;grid-column:1/-1">Waiting...</div>';return}
+            gr.innerHTML=e.sort((a,b)=>(a.cam_name||a.cam_id)>(b.cam_name||b.cam_id)?1:-1).map(c=>{
+                const i=now-(c.timestamp||0)<30;const f=c.feature||'counting';let x='',cid='';
+                if(f==='trajectory'){const od=c.od_matrix||{};const lb=c.trajectory_labels||Object.keys(od);const t=lb.reduce((s,l)=>s+Object.values(od[l]||{}).reduce((a,b)=>a+b,0),0);x='<span class="tag">'+t+' mov</span>'}
+                else if(f==='face_rec'){const r=c.recognized||{};const n=Object.keys(r);x=n.length?n.map(n=>'<span class="tag">'+n+' '+r[n]+'x</span>').join(''):'<span class="tag">—</span>'}
+                else if(f==='heatmap'){cid='hm-'+c.cam_id;x='<span class="tag">🔥</span>'}
+                else{x='<span class="tag">'+((c.people_inside||0)+' inside')+'</span>'}
+                return '<div class="cam-card" onclick="openCam(\''+c.cam_id+'\')"><div class="top"><div><div class="name">'+(c.cam_name||c.cam_id)+'</div><span class="feature-tag">'+f+'</span></div><span class="status-dot '+(i?'on':'off')+'"></span></div><div class="extra">'+x+'</div>'+(cid?'<canvas id="'+cid+'"></canvas>':'')+'</div>'
+            }).join('');
+            e.forEach(c=>{if(c.feature==='heatmap'){const el=document.getElementById('hm-'+c.cam_id);if(el&&c.heatmap)dhm(el,c.heatmap,32,24)}})
         }
 
-        ws.onmessage = e => {
-            const msg = JSON.parse(e.data);
-            if (msg.type==='init') Object.assign(cameras, msg.cameras);
-            else if (msg.type==='update') cameras[msg.cam_id]=msg.data;
-            render();
-            document.getElementById('status').textContent = Object.keys(cameras).length+' camera(s) • '+new Date().toLocaleTimeString('id-ID');
-        };
-        ws.onclose = ()=>{ document.getElementById('status').textContent='❌ Disconnected'; setTimeout(()=>location.reload(),3000); };
+        function openCam(id){
+            const c=cameras[id];if(!c)return;
+            document.getElementById('modalTitle').textContent=c.cam_name||id;
+            document.getElementById('modalFeature').textContent='Feature: '+c.feature;
+            const b=document.getElementById('modalBody');let h='';
+            if(c.feature==='trajectory'){
+                const od=c.od_matrix||{};const lb=c.trajectory_labels||Object.keys(od);
+                if(lb.length){let ro='';lb.forEach(o=>{let ce='<td><b>'+o+'</b></td>';lb.forEach(d=>ce+='<td>'+(od[o]?.[d]||0)+'</td>');ro+='<tr>'+ce+'</tr>'});h='<table><tr><th></th>'+lb.map(l=>'<th>'+l+'</th>').join('')+'</tr>'+ro+'</table>'}
+            }else if(c.feature==='face_rec'){
+                const r=c.recognized||{};const n=Object.keys(r);
+                h=n.length?'<div class="fl">'+n.map(n=>'<span class="fi">'+n+' <b>'+r[n]+'x</b></span>').join('')+'</div>':'<p style="color:#64748b">No faces</p>'
+            }else if(c.feature==='heatmap'){
+                h='<canvas class="hm" id="dhm"></canvas>';setTimeout(()=>{const el=document.getElementById('dhm');if(el&&c.heatmap)dhm(el,c.heatmap,64,48)},50)
+            }else{h='<p style="color:#94a3b8">Inside: <b>'+(c.people_inside||0)+'</b> | Tracked: <b>'+(c.people_tracked||0)+'</b></p>'}
+            b.innerHTML=h||'<p style="color:#64748b">No data</p>';
+            document.getElementById('overlay').classList.add('open')
+        }
+        function closeModal(){document.getElementById('overlay').classList.remove('open')}
+        document.getElementById('overlay').onclick=e=>{if(e.target===e.currentTarget)closeModal()};
+        ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='init')Object.assign(cameras,m.cameras);else if(m.type==='update')cameras[m.cam_id]=m.data;render();document.getElementById('status').textContent=Object.keys(cameras).length+' cam • '+new Date().toLocaleTimeString('id-ID')};
+        ws.onclose=()=>{document.getElementById('status').textContent='\u274c Disconnected';setTimeout(()=>location.reload(),3000)};
     </script>
 </body>
 </html>"""
