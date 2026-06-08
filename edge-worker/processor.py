@@ -1,19 +1,16 @@
 """
 People counting processor using Supervision + YOLO.
-Supports RTSP streams and video files.
-
-Now with optional face recognition integration.
+Now with PolygonZone (ROI) instead of LineZone.
 """
 
 import cv2
 import logging
 import numpy as np
-from supervision import Detections, LineZone, ByteTrack
+from typing import Optional
+from supervision import Detections, PolygonZone, ByteTrack
 from supervision.draw.color import ColorPalette
-from supervision.geometry.core import Point
+from supervision.geometry.core import Point, Polygon
 from ultralytics import YOLO
-
-from face_rec import FaceRecognizer
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +19,8 @@ PERSON_CLASS_ID = 0
 
 class PeopleCounter:
     """
-    Processes video frames and counts people crossing a line.
-    Optionally recognizes known faces.
+    Processes video frames and counts people inside a polygon zone (ROI).
+    Configurable remotely via MQTT/Central Server.
     """
 
     def __init__(
@@ -32,109 +29,131 @@ class PeopleCounter:
         face_recognition_enabled: bool = True,
         face_tolerance: float = 0.5,
     ):
-        logger.info(f"Loading YOLO model: {model_path}")
+        logger.info(f"Loading model: {model_path}")
         self.model = YOLO(model_path)
 
         self.tracker = ByteTrack(minimum_matching_threshold=0.8)
-        self.line_zone = LineZone(
-            start=Point(0, 0),
-            end=Point(0, 0),
-        )
-        self.frame_size: tuple[int, int] = (0, 0)
+
+        # Default ROI (full frame, will be overwritten by config)
+        self.polygon_zone: PolygonZone | None = None
+        self._roi_points: list[tuple[int, int]] = []
+        self.frame_size: tuple[int, int] = (640, 480)
+
         self._last_detections: Detections | None = None
+        self._last_annotated_frame: np.ndarray | None = None
 
         # Face recognition
         self._face_enabled = face_recognition_enabled
-        self._face_recognizer = FaceRecognizer(tolerance=face_tolerance)
-
+        self._face_recognizer = None
         if face_recognition_enabled:
             try:
+                from face_rec import FaceRecognizer
+                self._face_recognizer = FaceRecognizer(tolerance=face_tolerance)
                 self._face_recognizer.load_known_faces()
                 if self._face_recognizer.is_active:
-                    logger.info(f"Face recognition active: {self._face_recognizer.known_names}")
-                else:
-                    logger.info("Face recognition loaded but no known faces found.")
+                    logger.info(f"Face rec active: {self._face_recognizer.known_names}")
             except Exception as e:
-                logger.warning(f"Face recognition init failed (non-blocking): {e}")
+                logger.warning(f"Face rec init failed: {e}")
 
-    # ── Public API ──────────────────────────────────────────────
+    # ── ROI Config ─────────────────────────────────────────────
 
-    def set_line(self, start_x: int, start_y: int, end_x: int, end_y: int) -> None:
-        self.line_zone = LineZone(
-            start=Point(start_x, start_y),
-            end=Point(end_x, end_y),
+    def set_roi(self, points: list[list[int]] | list[tuple[int, int]]) -> None:
+        """
+        Set ROI polygon from list of [x,y] or (x,y) points.
+        Example: [[100,100], [500,100], [400,400], [200,400]]
+        """
+        self._roi_points = [(int(p[0]), int(p[1])) for p in points]
+        polygon = Polygon([Point(x, y) for x, y in self._roi_points])
+        self.polygon_zone = PolygonZone(
+            polygon=polygon,
+            frame_resolution_wh=self.frame_size,
         )
+        logger.info(f"ROI updated: {len(points)} points")
 
     def set_frame_size(self, width: int, height: int) -> None:
         self.frame_size = (width, height)
+        if self._roi_points:
+            self.set_roi(self._roi_points)
+
+    # ── Processing ──────────────────────────────────────────────
 
     def process_frame(self, frame: np.ndarray) -> dict:
-        """
-        Run inference + tracking + line counting + optional face recognition.
-        Returns analytics data.
-        """
+        """Run inference → filter person → track → check ROI → face rec."""
         detections = self._run_inference(frame)
         self._last_detections = detections
 
-        # Extract person bounding boxes (before tracking ids may change)
-        person_bboxes = [map(int, detections.xyxy[i]) for i in range(len(detections))]
+        # Count people inside ROI
+        zone_count = 0
+        if self.polygon_zone is not None and len(detections) > 0:
+            # PolygonZone.trigger returns boolean mask for inside/outside
+            mask = self.polygon_zone.trigger(detections)
+            inside = detections[mask]
+            zone_count = len(inside)
+        else:
+            zone_count = len(detections)
 
-        # Face recognition
+        # Face recognition on people inside ROI
         recognized: dict[str, int] = {}
-        if self._face_enabled and self._face_recognizer.is_active and len(detections) > 0:
+        if self._face_enabled and self._face_recognizer and self._face_recognizer.is_active and len(detections) > 0:
             try:
+                person_bboxes = [tuple(map(int, detections.xyxy[i])) for i in range(len(detections))]
                 recognized = self._face_recognizer.process_frame(frame, person_bboxes)
             except Exception as e:
                 logger.warning(f"Face rec error: {e}")
 
         return {
-            "count_in": self.line_zone.in_count,
-            "count_out": self.line_zone.out_count,
-            "total_inside": max(0, self.line_zone.in_count - self.line_zone.out_count),
-            "people_now": len(detections),
-            "people_ids": detections.tracker_id.tolist() if detections.tracker_id is not None else [],
+            "people_inside": zone_count,
+            "people_tracked": len(detections),
             "recognized": recognized,
         }
 
     def annotate_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Draw bounding boxes, tracking IDs, counting line, and face names."""
+        """Draw ROI polygon + bounding boxes + labels."""
         annotated = frame.copy()
         detections = self._last_detections
 
-        # Counting line
-        start = self.line_zone.start
-        end = self.line_zone.end
-        cv2.line(annotated, (int(start.x), int(start.y)),
-                 (int(end.x), int(end.y)), (0, 255, 0), 3)
-        cv2.putText(annotated, "IN/OUT line",
-                    (int(start.x) + 5, int(start.y) - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        # Draw ROI polygon
+        if self._roi_points:
+            pts = np.array(self._roi_points, dtype=np.int32)
+            cv2.polylines(annotated, [pts], isClosed=True, color=(0, 255, 255), thickness=2)
+            # Semi-transparent fill
+            overlay = annotated.copy()
+            cv2.fillPoly(overlay, [pts], (0, 255, 255, 40))
+            cv2.addWeighted(overlay, 0.15, annotated, 0.85, 0, annotated)
 
-        # Overlay counts
-        y_offset = 40
-        for text, val in [
-            (f"IN:  {self.line_zone.in_count}", (0, 255, 0)),
-            (f"OUT: {self.line_zone.out_count}", (0, 0, 255)),
-            (f"INSIDE: {max(0, self.line_zone.in_count - self.line_zone.out_count)}", (255, 255, 0)),
-        ]:
-            cv2.putText(annotated, text, (15, y_offset),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, val, 2)
-            y_offset += 35
+            # Label "ROI" at top-left of polygon
+            cx = int(np.mean([p[0] for p in self._roi_points]))
+            cy = int(np.mean([p[1] for p in self._roi_points]))
+            cv2.putText(annotated, "ROI", (cx - 20, cy),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
-        # Bounding boxes + names
+        # Overlay count
+        count_text = f"Inside ROI: {len(detections) if self.polygon_zone is None else '?'}"
+        cv2.putText(annotated, count_text, (15, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
+        # Bounding boxes
         if detections is not None and len(detections) > 0:
             palette = ColorPalette.DEFAULT
+
+            # Check which are inside ROI
+            inside_mask = None
+            if self.polygon_zone is not None:
+                try:
+                    inside_mask = self.polygon_zone.trigger(detections)
+                except:
+                    pass
+
             for i in range(len(detections)):
                 x1, y1, x2, y2 = map(int, detections.xyxy[i])
                 tid = detections.tracker_id[i] if detections.tracker_id is not None else None
-                color = palette.by_idx(i).as_bgr()
+                is_inside = inside_mask[i] if inside_mask is not None else True
 
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-
-                # Try face recognition on this person (simplified inline label)
+                color = (0, 255, 0) if is_inside else (100, 100, 100)  # green if inside, grey if outside
                 label = f"ID:{tid}" if tid is not None else "person"
 
-                if self._face_enabled and self._face_recognizer.is_active:
+                # Try face name
+                if self._face_enabled and self._face_recognizer and is_inside:
                     try:
                         import face_recognition as fr_
                         rgb_crop = cv2.cvtColor(frame[y1:y1+(y2-y1)//2, x1:x2], cv2.COLOR_BGR2RGB)
@@ -144,12 +163,14 @@ class PeopleCounter:
                             name = self._face_recognizer.recognize(rgb_crop[t:b, l:r])
                             if name != "Unknown":
                                 label = name
-                    except Exception:
+                    except:
                         pass
 
+                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(annotated, label, (x1, y1 - 8),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
+        self._last_annotated_frame = annotated
         return annotated
 
     # ── Internal ────────────────────────────────────────────────
@@ -157,9 +178,6 @@ class PeopleCounter:
     def _run_inference(self, frame: np.ndarray) -> Detections:
         results = self.model(frame, verbose=False)[0]
         detections = Detections.from_ultralytics(results)
-
-        person_mask = detections.class_id == PERSON_CLASS_ID
-        detections = detections[person_mask]
-
+        detections = detections[detections.class_id == PERSON_CLASS_ID]
         detections = self.tracker.update_with_detections(detections)
         return detections
