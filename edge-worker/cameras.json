@@ -18,6 +18,18 @@
       "name": "Lorong Belakang",
       "cam_url": "rtsp://admin:pass@192.168.1.103:554/stream1",
       "feature": "heatmap"
+    },
+    {
+      "cam_id": "junction_lt1",
+      "name": "Junction Lantai 1",
+      "cam_url": "rtsp://admin:pass@192.168.1.104:554/stream1",
+      "feature": "trajectory",
+      "zones": {
+        "North": [[250, 50], [350, 50], [350, 200], [250, 200]],
+        "South": [[250, 350], [350, 350], [350, 480], [250, 480]],
+        "East":  [[400, 150], [580, 150], [580, 350], [400, 350]],
+        "West":  [[50, 150], [200, 150], [200, 350], [50, 350]]
+      }
     }
   ]
 }
