@@ -70,11 +70,16 @@ pip install -r requirements.txt
 # Edit cameras.json — isi daftar kamera + fitur
 nano cameras.json
 
+# Set IP Central Server — WAJIB!
+export MQTT_BROKER="192.168.1.100"  # ganti dengan IP central
+
 # Jalankan
 python worker.py
 ```
 
-### 3. Edge Worker (Docker)
+> **⚠️ Wajib set `MQTT_BROKER`** — default-nya `localhost`, jadi kalo gak diset, edge worker bakal nyari MQTT broker di mesin sendiri. Bisa via env var atau export di shell.
+
+### 3. Edge Worker (Docker — alternatif)
 
 ```bash
 docker build -t cctv-edge ./edge-worker
